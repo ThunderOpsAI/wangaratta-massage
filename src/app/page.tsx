@@ -23,6 +23,8 @@ export default function WangarattaMassagePage() {
   const [focusArea, setFocusArea] = useState<string[]>(["lower-back"]);
   const [healthFund, setHealthFund] = useState("bupa");
   const [bookingStep, setBookingStep] = useState<"intake" | "confirmed">("intake");
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
   const [patientData, setPatientData] = useState({
     name: "",
     phone: "",
@@ -94,9 +96,40 @@ export default function WangarattaMassagePage() {
     { id: "other", name: "All other 45+ Australian Funds", rebate: "Eligible via HICAPS", hicaps: "Swipe card on day" },
   ];
 
-  const handleBookingSubmit = (e: React.FormEvent) => {
+  const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setBookingStep("confirmed");
+    setBookingLoading(true);
+    setBookingError(null);
+
+    try {
+      const response = await fetch("/api/booking", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: patientData.name,
+          phone: patientData.phone,
+          email: patientData.email,
+          treatment,
+          focusAreas: focusArea,
+          healthFund,
+          preferredDay: patientData.preferredDay,
+          preferredTime: patientData.preferredTime,
+          symptoms: patientData.symptoms,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to submit appointment booking.");
+      }
+
+      setBookingStep("confirmed");
+    } catch (err: any) {
+      setBookingError(err.message || "Failed to submit booking. Please call us directly.");
+    } finally {
+      setBookingLoading(false);
+    }
   };
 
   const selectedTreatmentObj = treatments.find((t) => t.id === treatment) || treatments[1];
@@ -376,6 +409,14 @@ export default function WangarattaMassagePage() {
                       />
                     </div>
 
+                    <input
+                      type="email"
+                      placeholder="Email Address (optional, for confirmation)"
+                      value={patientData.email}
+                      onChange={(e) => setPatientData({ ...patientData, email: e.target.value })}
+                      className="w-full bg-[#13231f] border border-emerald-800 rounded-lg px-3 py-2 text-xs text-white placeholder:text-emerald-600 focus:outline-none focus:border-emerald-400"
+                    />
+
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <select
                         value={patientData.preferredDay}
@@ -398,12 +439,26 @@ export default function WangarattaMassagePage() {
                       </select>
                     </div>
 
+                    <input
+                      type="text"
+                      placeholder="Symptoms or focus notes (optional)"
+                      value={patientData.symptoms}
+                      onChange={(e) => setPatientData({ ...patientData, symptoms: e.target.value })}
+                      className="w-full bg-[#13231f] border border-emerald-800 rounded-lg px-3 py-2 text-xs text-white placeholder:text-emerald-600 focus:outline-none focus:border-emerald-400"
+                    />
+
                     <button
                       type="submit"
-                      className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/20"
+                      disabled={bookingLoading}
+                      className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider transition-all shadow-lg shadow-emerald-500/20"
                     >
-                      CONFIRM APPOINTMENT &bull; PAY ON THE DAY
+                      {bookingLoading ? "Submitting..." : "CONFIRM APPOINTMENT \u2022 PAY ON THE DAY"}
                     </button>
+                    {bookingError && (
+                      <p className="text-xs text-red-400 text-center font-medium bg-red-950/40 border border-red-800/60 rounded-lg p-2">
+                        {bookingError}
+                      </p>
+                    )}
                     <p className="text-[11px] text-center text-emerald-400/60">
                       Zero cancellation fees up to 24h prior &bull; Direct confirmation via SMS
                     </p>
